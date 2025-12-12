@@ -23,7 +23,7 @@ class User(db.Model):
 
 # Create DB + admin user on first run
 with app.app_context():
-    
+    db.create_all()
     if not User.query.filter_by(email='admin@azex.com').first():
         admin = User(email='admin@azex.com', password='azex2025')
         db.session.add(admin)
@@ -45,13 +45,6 @@ def login():
 @app.route('/api/test')
 def test():
     return jsonify({'status': 'Backend working!'})
-
-# Force change for push
-print("Debug line to force commit")
-
-@app.route('/')
-def home():
-    return "AZEX PestGuard Backend is LIVE!"
 
 if __name__ == '__main__':
     app.run(debug=True)
