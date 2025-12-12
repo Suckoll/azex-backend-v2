@@ -49,5 +49,9 @@ def test():
 # Force change for push
 print("Debug line to force commit")
 
+@app.route('/')
+def home():
+    return "AZEX PestGuard Backend is LIVE!"
+
 if __name__ == '__main__':
     app.run(debug=True)
