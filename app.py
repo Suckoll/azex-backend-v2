@@ -46,5 +46,8 @@ def login():
 def test():
     return jsonify({'status': 'Backend working!'})
 
+# Force change for push
+print("Debug line to force commit")
+
 if __name__ == '__main__':
     app.run(debug=True)
