@@ -21,9 +21,8 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
 
-# Create DB + admin user on first run
+# Create admin user on first run (no db.create_all() to avoid duplicate error)
 with app.app_context():
-    db.create_all()
     if not User.query.filter_by(email='admin@azex.com').first():
         admin = User(email='admin@azex.com', password='azex2025')
         db.session.add(admin)
