@@ -44,8 +44,6 @@ def login():
 @app.route('/api/test')
 def test():
     return jsonify({'status': 'Backend working!'})
-@app.route('/')
-def home():
-    return "AZEX PestGuard Backend is LIVE!"
+
 if __name__ == '__main__':
     app.run(debug=True)
