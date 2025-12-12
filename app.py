@@ -6,7 +6,7 @@ import os
 
 app = Flask(__name__)
 
-# Heroku gives us DATABASE_URL, fallback to SQLite for local testing
+# Heroku DATABASE_URL config
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///test.db').replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
@@ -14,7 +14,7 @@ app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-dev-secret'
 
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
-CORS(app)  # Allows Vercel portal to talk to this backend
+CORS(app)  # Allows portal to talk to backend
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -47,4 +47,4 @@ def test():
     return jsonify({'status': 'Backend working!'})
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True)
