@@ -14,19 +14,23 @@ app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-dev-secret'
 
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
-CORS(app)  # Allows portal to talk to backend
+CORS(app)
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
 
-# Create admin user on first run (no db.create_all() to avoid duplicate error)
+# Admin user creation (no db.create_all() to avoid errors)
 with app.app_context():
     if not User.query.filter_by(email='admin@azex.com').first():
         admin = User(email='admin@azex.com', password='azex2025')
         db.session.add(admin)
         db.session.commit()
+
+@app.route('/')
+def home():
+    return "AZEX PestGuard Backend is LIVE!"
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
@@ -40,10 +44,6 @@ def login():
 @app.route('/api/test')
 def test():
     return jsonify({'status': 'Backend working!'})
-
-@app.route('/')
-def home():
-    return "AZEX PestGuard Backend is LIVE!"
 
 if __name__ == '__main__':
     app.run(debug=True)
