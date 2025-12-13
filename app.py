@@ -3,7 +3,6 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_cors import CORS
 import os
-from datetime import datetime
 
 app = Flask(__name__)
 
@@ -20,25 +19,26 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
-    role = db.Column(db.String(20), default='customer')  # admin, customer, technician
-
-class Technician(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    name = db.Column(db.String(100))
-
-class Job(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    customer_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    technician_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    date = db.Column(db.DateTime)
+    role = db.Column(db.String(20), default='customer')
+    firstName = db.Column(db.String(100))
+    lastName = db.Column(db.String(100))
+    phone1 = db.Column(db.String(20))
+    company = db.Column(db.String(100))
     address = db.Column(db.String(200))
-    description = db.Column(db.String(500))
-    status = db.Column(db.String(20), default='scheduled')
+    city = db.Column(db.String(100))
+    state = db.Column(db.String(10))
+    zip = db.Column(db.String(20))
+    billName = db.Column(db.String(100))
+    billEmail = db.Column(db.String(120))
+    billPhone = db.Column(db.String(20))
+    billAddress = db.Column(db.String(200))
+    billCity = db.Column(db.String(100))
+    billState = db.Column(db.String(10))
+    billZip = db.Column(db.String(20))
+    multiUnit = db.Column(db.Boolean, default=False)
 
 with app.app_context():
     db.create_all()
-    # Admin
     if not User.query.filter_by(email='admin@azex.com').first():
         admin = User(email='admin@azex.com', password='azex2025', role='admin')
         db.session.add(admin)
@@ -57,47 +57,67 @@ def login():
         return jsonify({'access_token': token})
     return jsonify({'error': 'Invalid credentials'}), 401
 
-@app.route('/api/technicians', methods=['GET'])
+@app.route('/api/customers', methods=['GET'])
 @jwt_required()
-def get_technicians():
+def get_customers():
     current_user = get_jwt_identity()
     if current_user['role'] != 'admin':
         return jsonify({'error': 'Admin only'}), 403
-    techs = User.query.filter_by(role='technician').all()
-    return jsonify([{'id': t.id, 'name': t.name or t.email} for t in techs])
-
-@app.route('/api/jobs/<int:tech_id>', methods=['GET'])
-@jwt_required()
-def get_jobs(tech_id):
-    current_user = get_jwt_identity()
-    if current_user['role'] not in ['admin', 'technician'] or (current_user['role'] == 'technician' and current_user['id'] != tech_id):
-        return jsonify({'error': 'Unauthorized'}), 403
-    jobs = Job.query.filter_by(technician_id=tech_id).all()
+    customers = User.query.filter_by(role='customer').all()
     return jsonify([{
-        'id': j.id,
-        'date': j.date.isoformat() if j.date else None,
-        'address': j.address,
-        'description': j.description,
-        'status': j.status
-    } for j in jobs])
+        'id': c.id,
+        'firstName': c.firstName or '',
+        'lastName': c.lastName or '',
+        'email': c.email,
+        'phone1': c.phone1 or '',
+        'company': c.company or '',
+        'address': c.address or '',
+        'city': c.city or '',
+        'state': c.state or '',
+        'zip': c.zip or '',
+        'billName': c.billName or '',
+        'billEmail': c.billEmail or '',
+        'billPhone': c.billPhone or '',
+        'billAddress': c.billAddress or '',
+        'billCity': c.billCity or '',
+        'billState': c.billState or '',
+        'billZip': c.billZip or '',
+        'multiUnit': c.multiUnit
+    } for c in customers])
 
-@app.route('/api/jobs', methods=['POST'])
+@app.route('/api/customers', methods=['POST'])
 @jwt_required()
-def add_job():
+def add_customer():
     current_user = get_jwt_identity()
     if current_user['role'] != 'admin':
         return jsonify({'error': 'Admin only'}), 403
     data = request.get_json()
-    job = Job(
-        customer_id=data['customer_id'],
-        technician_id=data['technician_id'],
-        date=datetime.fromisoformat(data['date']),
-        address=data['address'],
-        description=data['description']
+    if User.query.filter_by(email=data['email']).first():
+        return jsonify({'error': 'Email already exists'}), 400
+    new_user = User(
+        email=data['email'],
+        password='temp123',  # Customer will reset
+        role='customer',
+        firstName=data.get('firstName'),
+        lastName=data.get('lastName'),
+        phone1=data.get('phone1'),
+        company=data.get('company'),
+        address=data.get('address'),
+        city=data.get('city'),
+        state=data.get('state'),
+        zip=data.get('zip'),
+        billName=data.get('billName'),
+        billEmail=data.get('billEmail'),
+        billPhone=data.get('billPhone'),
+        billAddress=data.get('billAddress'),
+        billCity=data.get('billCity'),
+        billState=data.get('billState'),
+        billZip=data.get('billZip'),
+        multiUnit=data.get('multiUnit', False)
     )
-    db.session.add(job)
+    db.session.add(new_user)
     db.session.commit()
-    return jsonify({'message': 'Job added'})
+    return jsonify({'message': 'Customer added successfully!'})
 
 @app.route('/api/test')
 def test():
