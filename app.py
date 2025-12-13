@@ -28,10 +28,6 @@ with app.app_context():
         db.session.add(admin)
         db.session.commit()
 
-@app.route('/')
-def home():
-    return "AZEX PestGuard Backend is LIVE!"
-
 @app.route('/api/auth/login', methods=['POST'])
 def login():
     data = request.get_json()
@@ -44,6 +40,10 @@ def login():
 @app.route('/api/test')
 def test():
     return jsonify({'status': 'Backend working!'})
+
+@app.route('/')
+def home():
+    return "AZEX PestGuard Backend is LIVE!"
 
 if __name__ == '__main__':
     app.run(debug=True)
