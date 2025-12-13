@@ -6,11 +6,10 @@ import os
 
 app = Flask(__name__)
 
-# Config
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///test.db').replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
-app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-dev-secret')
+app.config['SECRET_KEY'] = 'dev-secret-change-me'
+app.config['JWT_SECRET_KEY'] = 'jwt-dev-secret'
 
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
@@ -21,8 +20,8 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
 
-# Admin user creation (no db.create_all() to avoid errors)
 with app.app_context():
+    db.create_all()
     if not User.query.filter_by(email='admin@azex.com').first():
         admin = User(email='admin@azex.com', password='azex2025')
         db.session.add(admin)
@@ -41,13 +40,5 @@ def login():
         return jsonify({'access_token': token})
     return jsonify({'error': 'Invalid credentials'}), 401
 
-@app.route('/')
-def home():
-    return "AZEX PestGuard Backend is LIVE!"
-
-@app.route('/api/test')
-def test():
-    return jsonify({'status': 'Backend working!'})
-
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=os.environ.get('PORT', 5000))
