@@ -41,6 +41,10 @@ def login():
         return jsonify({'access_token': token})
     return jsonify({'error': 'Invalid credentials'}), 401
 
+@app.route('/')
+def home():
+    return "AZEX PestGuard Backend is LIVE!"
+
 @app.route('/api/test')
 def test():
     return jsonify({'status': 'Backend working!'})
