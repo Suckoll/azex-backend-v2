@@ -4,7 +4,6 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from flask_cors import CORS
 import os
 from datetime import datetime
-from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
@@ -12,52 +11,36 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:/
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
 app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-dev-secret')
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 CORS(app)
 
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
-
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
-    role = db.Column(db.String(20), default='customer')
+    role = db.Column(db.String(20), default='customer')  # admin, customer, technician
+
+class Technician(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     name = db.Column(db.String(100))
-    address = db.Column(db.String(200))
-    phone = db.Column(db.String(20))
 
-class Property(db.Model):
+class Job(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
+    customer_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    technician_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    date = db.Column(db.DateTime)
     address = db.Column(db.String(200))
-    manager_name = db.Column(db.String(100))
-    manager_email = db.Column(db.String(120))
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))  # Links to customer account
-
-class BugReport(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    property_id = db.Column(db.Integer, db.ForeignKey('property.id'), nullable=False)
-    unit = db.Column(db.String(50))
-    pest = db.Column(db.String(100))
-    area = db.Column(db.String(100))
     description = db.Column(db.String(500))
-    photo = db.Column(db.String(200))
-    reporter = db.Column(db.String(100))
-    permission = db.Column(db.String(50))
-    occupied = db.Column(db.String(20))
-    date = db.Column(db.DateTime, default=datetime.utcnow)
-    status = db.Column(db.String(20), default='new')
+    status = db.Column(db.String(20), default='scheduled')
 
 with app.app_context():
     db.create_all()
-    # Create admin
+    # Admin
     if not User.query.filter_by(email='admin@azex.com').first():
-        admin = User(email='admin@azex.com', password='azex2025', role='admin', name='Admin User')
+        admin = User(email='admin@azex.com', password='azex2025', role='admin')
         db.session.add(admin)
         db.session.commit()
 
@@ -74,75 +57,51 @@ def login():
         return jsonify({'access_token': token})
     return jsonify({'error': 'Invalid credentials'}), 401
 
-@app.route('/api/properties', methods=['GET', 'POST'])
+@app.route('/api/technicians', methods=['GET'])
 @jwt_required()
-def properties():
+def get_technicians():
     current_user = get_jwt_identity()
     if current_user['role'] != 'admin':
         return jsonify({'error': 'Admin only'}), 403
-    if request.method == 'POST':
-        data = request.get_json()
-        new_property = Property(
-            name=data['name'],
-            address=data['address'],
-            manager_name=data.get('manager_name'),
-            manager_email=data.get('manager_email')
-        )
-        db.session.add(new_property)
-        db.session.commit()
-        return jsonify({'message': 'Property added', 'id': new_property.id})
-    else:
-        properties = Property.query.all()
-        return jsonify([{
-            'id': p.id,
-            'name': p.name,
-            'address': p.address,
-            'manager_name': p.manager_name,
-            'manager_email': p.manager_email
-        } for p in properties])
+    techs = User.query.filter_by(role='technician').all()
+    return jsonify([{'id': t.id, 'name': t.name or t.email} for t in techs])
 
-@app.route('/api/bugs/<int:property_id>', methods=['GET', 'POST'])
-def bugs(property_id):
-    if request.method == 'POST':
-        description = request.form.get('description')
-        photo = request.files.get('photo')
-        filename = None
-        if photo:
-            filename = secure_filename(photo.filename)
-            photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-        report = BugReport(
-            property_id=property_id,
-            unit=request.form.get('unit'),
-            pest=request.form.get('pest'),
-            area=request.form.get('area'),
-            description=description,
-            photo=filename,
-            reporter=request.form.get('reporter'),
-            permission=request.form.get('permission'),
-            occupied=request.form.get('occupied')
-        )
-        db.session.add(report)
-        db.session.commit()
-        return jsonify({'message': 'Bug reported!'})
-    else:
-        reports = BugReport.query.filter_by(property_id=property_id).all()
-        return jsonify([{
-            'id': r.id,
-            'unit': r.unit,
-            'pest': r.pest,
-            'area': r.area,
-            'description': r.description,
-            'photo': r.photo,
-            'reporter': r.reporter,
-            'permission': r.permission,
-            'occupied': r.occupied,
-            'date': r.date.isoformat(),
-            'status': r.status
-        } for r in reports])
+@app.route('/api/jobs/<int:tech_id>', methods=['GET'])
+@jwt_required()
+def get_jobs(tech_id):
+    current_user = get_jwt_identity()
+    if current_user['role'] not in ['admin', 'technician'] or (current_user['role'] == 'technician' and current_user['id'] != tech_id):
+        return jsonify({'error': 'Unauthorized'}), 403
+    jobs = Job.query.filter_by(technician_id=tech_id).all()
+    return jsonify([{
+        'id': j.id,
+        'date': j.date.isoformat() if j.date else None,
+        'address': j.address,
+        'description': j.description,
+        'status': j.status
+    } for j in jobs])
 
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+@app.route('/api/jobs', methods=['POST'])
+@jwt_required()
+def add_job():
+    current_user = get_jwt_identity()
+    if current_user['role'] != 'admin':
+        return jsonify({'error': 'Admin only'}), 403
+    data = request.get_json()
+    job = Job(
+        customer_id=data['customer_id'],
+        technician_id=data['technician_id'],
+        date=datetime.fromisoformat(data['date']),
+        address=data['address'],
+        description=data['description']
+    )
+    db.session.add(job)
+    db.session.commit()
+    return jsonify({'message': 'Job added'})
+
+@app.route('/api/test')
+def test():
+    return jsonify({'status': 'Backend working!'})
 
 if __name__ == '__main__':
     app.run(debug=True)
