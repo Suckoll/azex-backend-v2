@@ -6,22 +6,22 @@ import os
 
 app = Flask(__name__)
 
-# Config
+# Config for Heroku Postgres or local SQLite fallback
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///test.db').replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
-app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-dev-secret')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'change-me-in-production')
+app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'change-me-in-production')
 
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
-CORS(app)  # Allows portal to talk to backend
+CORS(app)  # Allows Vercel portal to call this backend
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
 
-# Admin user creation (no db.create_all() to avoid errors)
+# Create admin user on first run (no db.create_all() to avoid conflicts on redeploy)
 with app.app_context():
     if not User.query.filter_by(email='admin@azex.com').first():
         admin = User(email='admin@azex.com', password='azex2025')
