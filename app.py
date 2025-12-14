@@ -96,7 +96,7 @@ def add_customer():
         return jsonify({'error': 'Email already exists'}), 400
     new_user = User(
         email=data['email'],
-        password='temp123',  # Customer will reset
+        password='temp123',  # Customer will reset later
         role='customer',
         firstName=data.get('firstName'),
         lastName=data.get('lastName'),
