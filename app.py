@@ -38,9 +38,9 @@ class User(db.Model):
     multiUnit = db.Column(db.Boolean, default=False)
 
 with app.app_context():
-    # db.create_all()  # Remove or comment this line to avoid duplicate violations
+    db.create_all()
     if not User.query.filter_by(email='admin@azex.com').first():
-        admin = User(email='admin@azex.com', password='azex2025')
+        admin = User(email='admin@azex.com', password='azex2025', role='admin')
         db.session.add(admin)
         db.session.commit()
 
