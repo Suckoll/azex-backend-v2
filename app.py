@@ -123,5 +123,14 @@ def add_customer():
 def test():
     return jsonify({'status': 'Backend working!'})
 
+@app.route('/api/setup-admin', methods=['GET'])
+def setup_admin():
+    if not User.query.filter_by(email='admin@azex.com').first():
+        admin = User(email='admin@azex.com', password='azex2025', role='admin')
+        db.session.add(admin)
+        db.session.commit()
+        return jsonify({'message': 'Admin created'})
+    return jsonify({'message': 'Admin already exists'})
+
 if __name__ == '__main__':
     app.run(debug=True)
