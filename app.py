@@ -1,92 +1,140 @@
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from flask_jwt_extended import JWTManager
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_cors import CORS
 import os
-from twilio.twiml.voice_response import VoiceResponse, Gather
-import requests
 
 app = Flask(__name__)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///test.db').replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
+app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-dev-secret')
 
 db = SQLAlchemy(app)
+jwt = JWTManager(app)
 CORS(app)
 
-# ElevenLabs API key (get free at elevenlabs.io)
-ELEVENLABS_API_KEY = os.environ.get('ELEVENLABS_API_KEY')  # Add this in Render env vars
-VOICE_ID = 'EXAVITQu4vr4xnSDxMaL'  # Bella — friendly female voice (premade, natural)
-
-class BugReport(db.Model):
+class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    unit = db.Column(db.String(50))
-    pest = db.Column(db.String(100))
-    description = db.Column(db.String(500))
-    reporter = db.Column(db.String(100))
-    phone = db.Column(db.String(20))
-    date = db.Column(db.DateTime, default=datetime.utcnow)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password = db.Column(db.String(200), nullable=False)
+    role = db.Column(db.String(20), default='customer')
+    firstName = db.Column(db.String(100))
+    lastName = db.Column(db.String(100))
+    phone1 = db.Column(db.String(20))
+    company = db.Column(db.String(100))
+    address = db.Column(db.String(200))
+    city = db.Column(db.String(100))
+    state = db.Column(db.String(10))
+    zip = db.Column(db.String(20))
+    billName = db.Column(db.String(100))
+    billEmail = db.Column(db.String(120))
+    billPhone = db.Column(db.String(20))
+    billAddress = db.Column(db.String(200))
+    billCity = db.Column(db.String(100))
+    billState = db.Column(db.String(10))
+    billZip = db.Column(db.String(20))
+    multiUnit = db.Column(db.Boolean, default=False)
+    sms = db.Column(db.Boolean, default=True)
+    emailPref = db.Column(db.Boolean, default=True)
+    voice = db.Column(db.Boolean, default=False)
+    flags = db.Column(db.String(200))  # Comma-separated flags
 
 with app.app_context():
     db.create_all()
-
-def speak_text(text):
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
-    headers = {
-        "Accept": "audio/mpeg",
-        "Content-Type": "application/json",
-        "xi-api-key": ELEVENLABS_API_KEY
-    }
-    data = {
-        "text": text,
-        "model_id": "eleven_monolingual_v1",
-        "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}
-    }
-    response = requests.post(url, json=data, headers=headers)
-    if response.ok:
-        return response.content
-    return None
-
-@app.route('/twilio/voice', methods=['POST'])
-def twilio_voice():
-    resp = VoiceResponse()
-
-    # Friendly greeting
-    gather = Gather(input='speech', action='/twilio/handle', method='POST', speech_timeout='auto')
-    gather.say("Hello! Thank you for calling AZEX PestGuard. This is your virtual assistant. How can I help you today? For example, you can say 'I have a pest issue' or 'schedule a service'.", voice='woman', language='en-US')
-    resp.append(gather)
-
-    resp.say("We didn't hear anything. Goodbye.")
-    resp.hangup()
-
-    return Response(str(resp), mimetype='text/xml')
-
-@app.route('/twilio/handle', methods=['POST'])
-def twilio_handle():
-    speech_result = request.values.get('SpeechResult', '').lower()
-    caller_phone = request.values.get('From')
-
-    resp = VoiceResponse()
-
-    if 'pest' in speech_result or 'bug' in speech_result or 'issue' in speech_result:
-        # Collect details
-        session['report'] = {'phone': caller_phone}
-        gather = Gather(input='speech', action='/twilio/report_unit', method='POST')
-        gather.say("I'm sorry to hear that. Which apartment or unit number is the issue in?", voice='woman')
-        resp.append(gather)
-    else:
-        resp.say("I didn't understand. Connecting you to a representative.")
-        resp.dial('+16025551234')  # Replace with your office number
-
-    return Response(str(resp), mimetype='text/xml')
-
-# Add more /twilio/report_* routes for unit, pest, description, photo prompt, etc.
-
-# For photo: send SMS with link to widget
+    # Admin
+    if not User.query.filter_by(email='admin@azex.com').first():
+        admin = User(email='admin@azex.com', password='azex2025', role='admin')
+        db.session.add(admin)
+        db.session.commit()
 
 @app.route('/')
 def home():
     return "AZEX PestGuard Backend is LIVE!"
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    user = User.query.filter_by(email=data.get('email')).first()
+    if user and data.get('password') == 'azex2025':
+        token = create_access_token(identity={'id': user.id, 'email': user.email, 'role': user.role})
+        return jsonify({'access_token': token})
+    return jsonify({'error': 'Invalid credentials'}), 401
+
+@app.route('/api/customers', methods=['GET'])
+@jwt_required()
+def get_customers():
+    current_user = get_jwt_identity()
+    if current_user['role'] != 'admin':
+        return jsonify({'error': 'Admin only'}), 403
+    customers = User.query.filter_by(role='customer').all()
+    return jsonify([{
+        'id': c.id,
+        'firstName': c.firstName or '',
+        'lastName': c.lastName or '',
+        'email': c.email,
+        'phone1': c.phone1 or '',
+        'company': c.company or '',
+        'address': c.address or '',
+        'city': c.city or '',
+        'state': c.state or '',
+        'zip': c.zip or '',
+        'billName': c.billName or '',
+        'billEmail': c.billEmail or '',
+        'billPhone': c.billPhone or '',
+        'billAddress': c.billAddress or '',
+        'billCity': c.billCity or '',
+        'billState': c.billState or '',
+        'billZip': c.billZip or '',
+        'multiUnit': c.multiUnit,
+        'sms': c.sms,
+        'emailPref': c.emailPref,
+        'voice': c.voice,
+        'flags': c.flags or ''
+    } for c in customers])
+
+@app.route('/api/customers', methods=['POST'])
+@jwt_required()
+def add_customer():
+    current_user = get_jwt_identity()
+    if current_user['role'] != 'admin':
+        return jsonify({'error': 'Admin only'}), 403
+    data = request.get_json()
+    if User.query.filter_by(email=data['email']).first():
+        return jsonify({'error': 'Email already exists'}), 400
+    new_user = User(
+        email=data['email'],
+        password='temp123',  # Customer will reset
+        role='customer',
+        firstName=data.get('firstName'),
+        lastName=data.get('lastName'),
+        phone1=data.get('phone1'),
+        company=data.get('company'),
+        address=data.get('address'),
+        city=data.get('city'),
+        state=data.get('state'),
+        zip=data.get('zip'),
+        billName=data.get('billName'),
+        billEmail=data.get('billEmail'),
+        billPhone=data.get('billPhone'),
+        billAddress=data.get('billAddress'),
+        billCity=data.get('billCity'),
+        billState=data.get('billState'),
+        billZip=data.get('billZip'),
+        multiUnit=data.get('multiUnit', False),
+        sms=data.get('sms', True),
+        emailPref=data.get('emailPref', True),
+        voice=data.get('voice', False),
+        flags=data.get('flags', '')
+    )
+    db.session.add(new_user)
+    db.session.commit()
+    return jsonify({'message': 'Customer added successfully!'})
+
+@app.route('/api/test')
+def test():
+    return jsonify({'status': 'Backend working!'})
 
 if __name__ == '__main__':
     app.run(debug=True)
