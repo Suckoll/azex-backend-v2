@@ -36,14 +36,9 @@ class User(db.Model):
     billState = db.Column(db.String(10))
     billZip = db.Column(db.String(20))
     multiUnit = db.Column(db.Boolean, default=False)
-    sms = db.Column(db.Boolean, default=True)
-    emailPref = db.Column(db.Boolean, default=True)
-    voice = db.Column(db.Boolean, default=False)
-    flags = db.Column(db.String(200))  # Comma-separated flags
 
 with app.app_context():
     db.create_all()
-    # Admin
     if not User.query.filter_by(email='admin@azex.com').first():
         admin = User(email='admin@azex.com', password='azex2025', role='admin')
         db.session.add(admin)
@@ -87,11 +82,7 @@ def get_customers():
         'billCity': c.billCity or '',
         'billState': c.billState or '',
         'billZip': c.billZip or '',
-        'multiUnit': c.multiUnit,
-        'sms': c.sms,
-        'emailPref': c.emailPref,
-        'voice': c.voice,
-        'flags': c.flags or ''
+        'multiUnit': c.multiUnit
     } for c in customers])
 
 @app.route('/api/customers', methods=['POST'])
@@ -105,7 +96,7 @@ def add_customer():
         return jsonify({'error': 'Email already exists'}), 400
     new_user = User(
         email=data['email'],
-        password='temp123',  # Customer will reset
+        password='temp123',
         role='customer',
         firstName=data.get('firstName'),
         lastName=data.get('lastName'),
@@ -122,11 +113,7 @@ def add_customer():
         billCity=data.get('billCity'),
         billState=data.get('billState'),
         billZip=data.get('billZip'),
-        multiUnit=data.get('multiUnit', False),
-        sms=data.get('sms', True),
-        emailPref=data.get('emailPref', True),
-        voice=data.get('voice', False),
-        flags=data.get('flags', '')
+        multiUnit=data.get('multiUnit', False)
     )
     db.session.add(new_user)
     db.session.commit()
