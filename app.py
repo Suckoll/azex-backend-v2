@@ -6,6 +6,7 @@ import os
 
 app = Flask(__name__)
 
+# Config
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///test.db').replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
@@ -37,6 +38,7 @@ class User(db.Model):
     billZip = db.Column(db.String(20))
     multiUnit = db.Column(db.Boolean, default=False)
 
+# Create tables and admin user (safe for redeploy)
 with app.app_context():
     db.create_all()
     if not User.query.filter_by(email='admin@azex.com').first():
@@ -92,6 +94,8 @@ def add_customer():
     if current_user['role'] != 'admin':
         return jsonify({'error': 'Admin only'}), 403
     data = request.get_json()
+    if not data or 'email' not in data:
+        return jsonify({'error': 'Email required'}), 400
     if User.query.filter_by(email=data['email']).first():
         return jsonify({'error': 'Email already exists'}), 400
     new_user = User(
