@@ -98,30 +98,34 @@ def add_customer():
         return jsonify({'error': 'Email required'}), 400
     if User.query.filter_by(email=data['email']).first():
         return jsonify({'error': 'Email already exists'}), 400
-    new_user = User(
-        email=data['email'],
-        password='temp123',
-        role='customer',
-        firstName=data.get('firstName'),
-        lastName=data.get('lastName'),
-        phone1=data.get('phone1'),
-        company=data.get('company'),
-        address=data.get('address'),
-        city=data.get('city'),
-        state=data.get('state'),
-        zip=data.get('zip'),
-        billName=data.get('billName'),
-        billEmail=data.get('billEmail'),
-        billPhone=data.get('billPhone'),
-        billAddress=data.get('billAddress'),
-        billCity=data.get('billCity'),
-        billState=data.get('billState'),
-        billZip=data.get('billZip'),
-        multiUnit=data.get('multiUnit', False)
-    )
-    db.session.add(new_user)
-    db.session.commit()
-    return jsonify({'message': 'Customer added successfully!'})
+    try:
+        new_user = User(
+            email=data['email'],
+            password='temp123',
+            role='customer',
+            firstName=data.get('firstName'),
+            lastName=data.get('lastName'),
+            phone1=data.get('phone1'),
+            company=data.get('company'),
+            address=data.get('address'),
+            city=data.get('city'),
+            state=data.get('state'),
+            zip=data.get('zip'),
+            billName=data.get('billName'),
+            billEmail=data.get('billEmail'),
+            billPhone=data.get('billPhone'),
+            billAddress=data.get('billAddress'),
+            billCity=data.get('billCity'),
+            billState=data.get('billState'),
+            billZip=data.get('billZip'),
+            multiUnit=data.get('multiUnit', False)
+        )
+        db.session.add(new_user)
+        db.session.commit()
+        return jsonify({'message': 'Customer added successfully!'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/test')
 def test():
