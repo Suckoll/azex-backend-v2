@@ -1,8 +1,9 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt, get_jwt_identity
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_cors import CORS
 import os
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -37,11 +38,31 @@ class User(db.Model):
     billZip = db.Column(db.String(20))
     multiUnit = db.Column(db.Boolean, default=False)
 
+class Technician(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(120))
+
+class Job(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    technician_id = db.Column(db.Integer, db.ForeignKey('technician.id'))
+    title = db.Column(db.String(200))
+    start = db.Column(db.DateTime, nullable=False)
+    end = db.Column(db.DateTime, nullable=False)
+    description = db.Column(db.String(500))
+    recurring = db.Column(db.String(20))  # weekly, monthly, etc.
+
 with app.app_context():
     db.create_all()
     if not User.query.filter_by(email='admin@azex.com').first():
         admin = User(email='admin@azex.com', password='azex2025', role='admin')
         db.session.add(admin)
+        db.session.commit()
+    # Add sample technician
+    if not Technician.query.first():
+        tech = Technician(name='John Tech', email='john@azex.com')
+        db.session.add(tech)
         db.session.commit()
 
 @app.route('/')
@@ -53,76 +74,47 @@ def login():
     data = request.get_json()
     user = User.query.filter_by(email=data.get('email')).first()
     if user and data.get('password') == 'azex2025':
-        token = create_access_token(
-            identity=str(user.id),
-            additional_claims={'email': user.email, 'role': user.role}
-        )
+        token = create_access_token(identity=str(user.id), additional_claims={'role': user.role})
         return jsonify({'access_token': token})
     return jsonify({'error': 'Invalid credentials'}), 401
 
-@app.route('/api/customers', methods=['GET'])
+@app.route('/api/technicians')
 @jwt_required()
-def get_customers():
-    claims = get_jwt()
-    if claims.get('role') != 'admin':
-        return jsonify({'error': 'Admin only'}), 403
-    customers = User.query.filter_by(role='customer').all()
-    return jsonify([{
-        'id': c.id,
-        'firstName': c.firstName or '',
-        'lastName': c.lastName or '',
-        'email': c.email,
-        'phone1': c.phone1 or '',
-        'company': c.company or '',
-        'address': c.address or '',
-        'city': c.city or '',
-        'state': c.state or '',
-        'zip': c.zip or '',
-        'billName': c.billName or '',
-        'billEmail': c.billEmail or '',
-        'billPhone': c.billPhone or '',
-        'billAddress': c.billAddress or '',
-        'billCity': c.billCity or '',
-        'billState': c.billState or '',
-        'billZip': c.billZip or '',
-        'multiUnit': c.multiUnit
-    } for c in customers])
+def get_technicians():
+    techs = Technician.query.all()
+    return jsonify([{'id': t.id, 'name': t.name} for t in techs])
 
-@app.route('/api/customers', methods=['POST'])
+@app.route('/api/jobs', methods=['GET', 'POST'])
 @jwt_required()
-def add_customer():
-    claims = get_jwt()
-    if claims.get('role') != 'admin':
+def jobs():
+    current_user = get_jwt()
+    if current_user.get('role') != 'admin':
         return jsonify({'error': 'Admin only'}), 403
-    data = request.get_json()
-    if not data or 'email' not in data:
-        return jsonify({'error': 'Email required'}), 400
-    if User.query.filter_by(email=data['email']).first():
-        return jsonify({'error': 'Email already exists'}), 400
-    new_user = User(
-        email=data['email'],
-        password='temp123',
-        role='customer',
-        firstName=data.get('firstName'),
-        lastName=data.get('lastName'),
-        phone1=data.get('phone1'),
-        company=data.get('company'),
-        address=data.get('address'),
-        city=data.get('city'),
-        state=data.get('state'),
-        zip=data.get('zip'),
-        billName=data.get('billName'),
-        billEmail=data.get('billEmail'),
-        billPhone=data.get('billPhone'),
-        billAddress=data.get('billAddress'),
-        billCity=data.get('billCity'),
-        billState=data.get('billState'),
-        billZip=data.get('billZip'),
-        multiUnit=data.get('multiUnit', False)
-    )
-    db.session.add(new_user)
-    db.session.commit()
-    return jsonify({'message': 'Customer added successfully!'})
+    if request.method == 'POST':
+        data = request.get_json()
+        job = Job(
+            customer_id=data['customer_id'],
+            technician_id=data.get('technician_id'),
+            title=data['title'],
+            start=datetime.fromisoformat(data['start']),
+            end=datetime.fromisoformat(data['end']),
+            description=data.get('description'),
+            recurring=data.get('recurring')
+        )
+        db.session.add(job)
+        db.session.commit()
+        return jsonify({'message': 'Job added'})
+    else:
+        jobs = Job.query.all()
+        return jsonify([{
+            'id': j.id,
+            'title': j.title,
+            'start': j.start.isoformat(),
+            'end': j.end.isoformat(),
+            'description': j.description,
+            'technician_id': j.technician_id,
+            'customer_id': j.customer_id
+        } for j in jobs])
 
 @app.route('/api/test')
 def test():
