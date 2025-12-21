@@ -21,22 +21,6 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(20), default='customer')
-    firstName = db.Column(db.String(100))
-    lastName = db.Column(db.String(100))
-    phone1 = db.Column(db.String(20))
-    company = db.Column(db.String(100))
-    address = db.Column(db.String(200))
-    city = db.Column(db.String(100))
-    state = db.Column(db.String(10))
-    zip = db.Column(db.String(20))
-    billName = db.Column(db.String(100))
-    billEmail = db.Column(db.String(120))
-    billPhone = db.Column(db.String(20))
-    billAddress = db.Column(db.String(200))
-    billCity = db.Column(db.String(100))
-    billState = db.Column(db.String(10))
-    billZip = db.Column(db.String(20))
-    multiUnit = db.Column(db.Boolean, default=False)
 
 class Technician(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -45,13 +29,12 @@ class Technician(db.Model):
 
 class Job(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    customer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     technician_id = db.Column(db.Integer, db.ForeignKey('technician.id'))
+    customer_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     title = db.Column(db.String(200))
-    start = db.Column(db.DateTime, nullable=False)
-    end = db.Column(db.DateTime, nullable=False)
+    start = db.Column(db.DateTime)
+    end = db.Column(db.DateTime)
     description = db.Column(db.String(500))
-    recurring = db.Column(db.String(20))  # weekly, monthly, etc.
 
 with app.app_context():
     db.create_all()
@@ -59,7 +42,6 @@ with app.app_context():
         admin = User(email='admin@azex.com', password='azex2025', role='admin')
         db.session.add(admin)
         db.session.commit()
-    # Add sample technician
     if not Technician.query.first():
         tech = Technician(name='John Tech', email='john@azex.com')
         db.session.add(tech)
@@ -84,37 +66,17 @@ def get_technicians():
     techs = Technician.query.all()
     return jsonify([{'id': t.id, 'name': t.name} for t in techs])
 
-@app.route('/api/jobs', methods=['GET', 'POST'])
+@app.route('/api/jobs/<int:tech_id>', methods=['GET'])
 @jwt_required()
-def jobs():
-    current_user = get_jwt()
-    if current_user.get('role') != 'admin':
-        return jsonify({'error': 'Admin only'}), 403
-    if request.method == 'POST':
-        data = request.get_json()
-        job = Job(
-            customer_id=data['customer_id'],
-            technician_id=data.get('technician_id'),
-            title=data['title'],
-            start=datetime.fromisoformat(data['start']),
-            end=datetime.fromisoformat(data['end']),
-            description=data.get('description'),
-            recurring=data.get('recurring')
-        )
-        db.session.add(job)
-        db.session.commit()
-        return jsonify({'message': 'Job added'})
-    else:
-        jobs = Job.query.all()
-        return jsonify([{
-            'id': j.id,
-            'title': j.title,
-            'start': j.start.isoformat(),
-            'end': j.end.isoformat(),
-            'description': j.description,
-            'technician_id': j.technician_id,
-            'customer_id': j.customer_id
-        } for j in jobs])
+def get_jobs(tech_id):
+    jobs = Job.query.filter_by(technician_id=tech_id).all()
+    return jsonify([{
+        'id': j.id,
+        'title': j.title,
+        'start': j.start.isoformat(),
+        'end': j.end.isoformat(),
+        'description': j.description
+    } for j in jobs])
 
 @app.route('/api/test')
 def test():
