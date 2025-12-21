@@ -101,6 +101,25 @@ def get_branches():
         'address': b.address
     } for b in branches])
 
+@app.route('/api/customers')
+@jwt_required()
+def get_customers():
+    current_user = get_jwt_identity()
+    if current_user['role'] != 'admin':
+        return jsonify({'error': 'Admin only'}), 403
+    branch_id = request.args.get('branch_id')
+    query = User.query.filter_by(role='customer')
+    if branch_id:
+        query = query.filter_by(branch_id=branch_id)
+    customers = query.all()
+    return jsonify([{
+        'id': c.id,
+        'firstName': c.firstName or '',
+        'lastName': c.lastName or '',
+        'email': c.email,
+        # ... other fields
+    } for c in customers])
+
 # Add more endpoints as needed (customers, jobs, technicians filtered by branch)
 
 @app.route('/api/test')
