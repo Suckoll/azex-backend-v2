@@ -3,7 +3,6 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_cors import CORS
 import os
-from datetime import datetime
 
 app = Flask(__name__)
 
@@ -16,21 +15,47 @@ db = SQLAlchemy(app)
 jwt = JWTManager(app)
 CORS(app)
 
+class Branch(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    city = db.Column(db.String(100), nullable=False)
+    state = db.Column(db.String(10), nullable=False)
+    address = db.Column(db.String(200))
+    manager_name = db.Column(db.String(100))
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(20), default='customer')
+    branch_id = db.Column(db.Integer, db.ForeignKey('branch.id'))
+    firstName = db.Column(db.String(100))
+    lastName = db.Column(db.String(100))
+    phone1 = db.Column(db.String(20))
+    company = db.Column(db.String(100))
+    address = db.Column(db.String(200))
+    city = db.Column(db.String(100))
+    state = db.Column(db.String(10))
+    zip = db.Column(db.String(20))
+    billName = db.Column(db.String(100))
+    billEmail = db.Column(db.String(120))
+    billPhone = db.Column(db.String(20))
+    billAddress = db.Column(db.String(200))
+    billCity = db.Column(db.String(100))
+    billState = db.Column(db.String(10))
+    billZip = db.Column(db.String(20))
+    multiUnit = db.Column(db.Boolean, default=False)
 
 class Technician(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(120))
+    branch_id = db.Column(db.Integer, db.ForeignKey('branch.id'))
 
 class Job(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    technician_id = db.Column(db.Integer, db.ForeignKey('technician.id'))
     customer_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    technician_id = db.Column(db.Integer, db.ForeignKey('technician.id'))
+    branch_id = db.Column(db.Integer, db.ForeignKey('branch.id'))
     title = db.Column(db.String(200))
     start = db.Column(db.DateTime)
     end = db.Column(db.DateTime)
@@ -38,13 +63,17 @@ class Job(db.Model):
 
 with app.app_context():
     db.create_all()
+    # Admin
     if not User.query.filter_by(email='admin@azex.com').first():
         admin = User(email='admin@azex.com', password='azex2025', role='admin')
         db.session.add(admin)
         db.session.commit()
-    if not Technician.query.first():
-        tech = Technician(name='John Tech', email='john@azex.com')
-        db.session.add(tech)
+    # Sample branches
+    if not Branch.query.first():
+        prescott = Branch(name='AZEX Prescott', city='Prescott', state='AZ', address='123 Main St')
+        phoenix = Branch(name='AZEX Phoenix', city='Phoenix', state='AZ', address='456 Central Ave')
+        vegas = Branch(name='AZEX Las Vegas', city='Las Vegas', state='NV', address='789 Strip Blvd')
+        db.session.add_all([prescott, phoenix, vegas])
         db.session.commit()
 
 @app.route('/')
@@ -60,23 +89,19 @@ def login():
         return jsonify({'access_token': token})
     return jsonify({'error': 'Invalid credentials'}), 401
 
-@app.route('/api/technicians')
+@app.route('/api/branches')
 @jwt_required()
-def get_technicians():
-    techs = Technician.query.all()
-    return jsonify([{'id': t.id, 'name': t.name} for t in techs])
-
-@app.route('/api/jobs/<int:tech_id>', methods=['GET'])
-@jwt_required()
-def get_jobs(tech_id):
-    jobs = Job.query.filter_by(technician_id=tech_id).all()
+def get_branches():
+    branches = Branch.query.all()
     return jsonify([{
-        'id': j.id,
-        'title': j.title,
-        'start': j.start.isoformat(),
-        'end': j.end.isoformat(),
-        'description': j.description
-    } for j in jobs])
+        'id': b.id,
+        'name': b.name,
+        'city': b.city,
+        'state': b.state,
+        'address': b.address
+    } for b in branches])
+
+# Add more endpoints as needed (customers, jobs, technicians filtered by branch)
 
 @app.route('/api/test')
 def test():
