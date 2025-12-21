@@ -123,39 +123,5 @@ def add_customer():
 def test():
     return jsonify({'status': 'Backend working!'})
 
-@app.route('/api/customers', methods=['POST'])
-@jwt_required()
-def add_customer():
-    current_user = get_jwt_identity()
-    if current_user['role'] != 'admin':
-        return jsonify({'error': 'Admin only'}), 403
-    data = request.get_json()
-    if User.query.filter_by(email=data['email']).first():
-        return jsonify({'error': 'Email already exists'}), 400
-    new_user = User(
-        email=data['email'],
-        password='temp123',  # Customer will reset
-        role='customer',
-        firstName=data.get('firstName'),
-        lastName=data.get('lastName'),
-        phone1=data.get('phone1'),
-        company=data.get('company'),
-        address=data.get('address'),
-        city=data.get('city'),
-        state=data.get('state'),
-        zip=data.get('zip'),
-        billName=data.get('billName'),
-        billEmail=data.get('billEmail'),
-        billPhone=data.get('billPhone'),
-        billAddress=data.get('billAddress'),
-        billCity=data.get('billCity'),
-        billState=data.get('billState'),
-        billZip=data.get('billZip'),
-        multiUnit=data.get('multiUnit', False)
-    )
-    db.session.add(new_user)
-    db.session.commit()
-    return jsonify({'message': 'Customer added successfully!'})
-
 if __name__ == '__main__':
     app.run(debug=True)
