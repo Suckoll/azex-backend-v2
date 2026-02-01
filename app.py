@@ -1,11 +1,13 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
 from flask_cors import CORS
 import os
+from datetime import datetime
 
 app = Flask(__name__)
 
+# Config
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///test.db').replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
@@ -85,7 +87,10 @@ def login():
     data = request.get_json()
     user = User.query.filter_by(email=data.get('email')).first()
     if user and data.get('password') == 'azex2025':
-        token = create_access_token(identity=str(user.id), additional_claims={'role': user.role})
+        token = create_access_token(
+            identity=str(user.id),
+            additional_claims={'role': user.role}
+        )
         return jsonify({'access_token': token})
     return jsonify({'error': 'Invalid credentials'}), 401
 
@@ -101,11 +106,11 @@ def get_branches():
         'address': b.address
     } for b in branches])
 
-@app.route('/api/customers')
+@app.route('/api/customers', methods=['GET'])
 @jwt_required()
 def get_customers():
-    current_user = get_jwt_identity()
-    if current_user['role'] != 'admin':
+    claims = get_jwt()
+    if claims.get('role') != 'admin':
         return jsonify({'error': 'Admin only'}), 403
     branch_id = request.args.get('branch_id')
     query = User.query.filter_by(role='customer')
@@ -117,10 +122,57 @@ def get_customers():
         'firstName': c.firstName or '',
         'lastName': c.lastName or '',
         'email': c.email,
-        # ... other fields
+        'phone1': c.phone1 or '',
+        'company': c.company or '',
+        'address': c.address or '',
+        'city': c.city or '',
+        'state': c.state or '',
+        'zip': c.zip or '',
+        'billName': c.billName or '',
+        'billEmail': c.billEmail or '',
+        'billPhone': c.billPhone or '',
+        'billAddress': c.billAddress or '',
+        'billCity': c.billCity or '',
+        'billState': c.billState or '',
+        'billZip': c.billZip or '',
+        'multiUnit': c.multiUnit
     } for c in customers])
 
-# Add more endpoints as needed (customers, jobs, technicians filtered by branch)
+@app.route('/api/customers', methods=['POST'])
+@jwt_required()
+def add_customer():
+    claims = get_jwt()
+    if claims.get('role') != 'admin':
+        return jsonify({'error': 'Admin only'}), 403
+    data = request.get_json()
+    if not data or 'email' not in data:
+        return jsonify({'error': 'Email required'}), 400
+    if User.query.filter_by(email=data['email']).first():
+        return jsonify({'error': 'Email already exists'}), 400
+    new_user = User(
+        email=data['email'],
+        password='temp123',
+        role='customer',
+        firstName=data.get('firstName'),
+        lastName=data.get('lastName'),
+        phone1=data.get('phone1'),
+        company=data.get('company'),
+        address=data.get('address'),
+        city=data.get('city'),
+        state=data.get('state'),
+        zip=data.get('zip'),
+        billName=data.get('billName'),
+        billEmail=data.get('billEmail'),
+        billPhone=data.get('billPhone'),
+        billAddress=data.get('billAddress'),
+        billCity=data.get('billCity'),
+        billState=data.get('billState'),
+        billZip=data.get('billZip'),
+        multiUnit=data.get('multiUnit', False)
+    )
+    db.session.add(new_user)
+    db.session.commit()
+    return jsonify({'message': 'Customer added successfully!'})
 
 @app.route('/api/test')
 def test():
