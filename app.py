@@ -1,28 +1,17 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token
-from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
 
 app = Flask(__name__)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'  # Simple local DB for testing
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///test.db').replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'dev-secret-change-me'
 app.config['JWT_SECRET_KEY'] = 'jwt-dev-secret'
 
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
-
-# FIXED CORS - after app definition
-CORS(app, resources={
-    r"/api/*": {
-        "origins": "*",
-        "methods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-        "allow_headers": ["Authorization", "Content-Type"]
-    }
-})
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -46,23 +35,25 @@ with app.app_context():
 
 @app.route('/')
 def home():
-    return "AZEX PestGuard Backend is LIVE! - CORS fixed"
+    return "Backend LIVE - Login should work now!"
 
-@app.route('/api/auth/login', methods=['POST', 'OPTIONS'])
+@app.route('/api/auth/login', methods=['OPTIONS', 'POST'])
 def login():
+    # Manual preflight response
     if request.method == 'OPTIONS':
-        # Manual preflight response
-        response = jsonify({'message': 'OK'})
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        response = jsonify({})
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
         return response, 200
 
     data = request.get_json()
     user = User.query.filter_by(email=data.get('email')).first()
     if user and user.check_password(data.get('password')):
         token = create_access_token(identity=str(user.id), additional_claims={'role': user.role})
-        return jsonify({'access_token': token})
+        response = jsonify({'access_token': token})
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        return response
     return jsonify({'error': 'Invalid credentials'}), 401
 
 if __name__ == '__main__':
