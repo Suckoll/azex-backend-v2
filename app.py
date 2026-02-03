@@ -34,7 +34,7 @@ with app.app_context():
         db.session.add(admin)
         db.session.commit()
 
-# Manual CORS headers on every response
+# Manual CORS headers
 @app.after_request
 def after_request(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
@@ -44,19 +44,19 @@ def after_request(response):
 
 @app.route('/')
 def home():
-    return "AZEX PestGuard Backend is LIVE! Login should now work."
+    return "AZEX PestGuard Backend is LIVE! Root route working - no more 404"
 
 @app.route('/api/auth/login', methods=['OPTIONS', 'POST'])
 def login():
     if request.method == 'OPTIONS':
-        return '', 200  # Preflight success
+        return '', 200
 
     data = request.get_json()
-    if not data or 'email' not in data or 'password' not in data:
-        return jsonify({'error': 'Missing email or password'}), 400
+    if not data:
+        return jsonify({'error': 'No data'}), 400
 
-    user = User.query.filter_by(email=data['email']).first()
-    if user and user.check_password(data['password']):
+    user = User.query.filter_by(email=data.get('email')).first()
+    if user and user.check_password(data.get('password')):
         token = create_access_token(identity=str(user.id), additional_claims={'role': user.role})
         return jsonify({'access_token': token})
 
@@ -64,7 +64,7 @@ def login():
 
 @app.route('/api/test')
 def test():
-    return jsonify({'message': 'Backend working - CORS fixed!'})
+    return jsonify({'message': 'API working!'})
 
 if __name__ == '__main__':
     app.run(debug=True)
