@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token
 from werkzeug.security import generate_password_hash, check_password_hash
+import os
 
 app = Flask(__name__)
 
@@ -33,28 +34,37 @@ with app.app_context():
         db.session.add(admin)
         db.session.commit()
 
+# Manual CORS headers on every response
+@app.after_request
+def after_request(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    return response
+
 @app.route('/')
 def home():
-    return "Backend LIVE - Login should work now!"
+    return "AZEX PestGuard Backend is LIVE! Login should now work."
 
 @app.route('/api/auth/login', methods=['OPTIONS', 'POST'])
 def login():
-    # Manual preflight response
     if request.method == 'OPTIONS':
-        response = jsonify({})
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-        return response, 200
+        return '', 200  # Preflight success
 
     data = request.get_json()
-    user = User.query.filter_by(email=data.get('email')).first()
-    if user and user.check_password(data.get('password')):
+    if not data or 'email' not in data or 'password' not in data:
+        return jsonify({'error': 'Missing email or password'}), 400
+
+    user = User.query.filter_by(email=data['email']).first()
+    if user and user.check_password(data['password']):
         token = create_access_token(identity=str(user.id), additional_claims={'role': user.role})
-        response = jsonify({'access_token': token})
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        return response
+        return jsonify({'access_token': token})
+
     return jsonify({'error': 'Invalid credentials'}), 401
+
+@app.route('/api/test')
+def test():
+    return jsonify({'message': 'Backend working - CORS fixed!'})
 
 if __name__ == '__main__':
     app.run(debug=True)
