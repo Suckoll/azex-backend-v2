@@ -1,13 +1,7 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt
-from flask_cors import CORS CORS(app, resources={
-    r"/api/*": {
-        "origins": "*",
-        "methods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-        "allow_headers": ["Authorization", "Content-Type"]
-    }
-})
+from flask_cors import CORS
 import os
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -16,17 +10,24 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy import UniqueConstraint
 
 app = Flask(__name__)
+
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///test.db').replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
 app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-dev-secret')
 app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['EMPLOYEE_PHOTO_FOLDER'] = 'uploads/employees'  # New subfolder
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
-CORS(app)
 
+CORS(app, resources={
+    r"/api/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        "allow_headers": ["Authorization", "Content-Type"]
+    }
+})
 # Create folders
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
