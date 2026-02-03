@@ -224,3 +224,20 @@ def test():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+@app.route('/api/jobs/<int:job_id>', methods=['PUT'])
+@jwt_required()
+def update_job(job_id):
+    claims = get_jwt()
+    if claims.get('role') != 'admin':
+        return jsonify({'error': 'Admin only'}), 403
+    data = request.get_json()
+    job = Job.query.get_or_404(job_id)
+    if 'technician_id' in data:
+        job.technician_id = data['technician_id']
+    if 'start' in data:
+        job.start = datetime.fromisoformat(data['start'])
+    if 'end' in data:
+        job.end = datetime.fromisoformat(data['end'])
+    db.session.commit()
+    return jsonify({'message': 'Job updated'})
