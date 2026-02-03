@@ -180,3 +180,21 @@ def test():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+@app.route('/api/logbook', methods=['POST'])
+def logbook_report():
+    property_id = request.form.get('property_id')
+    if not property_id:
+        return jsonify({'error': 'Missing property ID'}), 400
+
+    # Save photo if uploaded
+    photo = request.files.get('photo')
+    filename = None
+    if photo:
+        filename = secure_filename(photo.filename)
+        photo.save(os.path.join('uploads', filename))
+
+    # Save report to DB (add Logbook model later — for now, placeholder)
+    # In full version, create Logbook model with property_id, unit, pest, etc.
+
+    return jsonify({'message': 'Report received!'})
