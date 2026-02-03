@@ -67,6 +67,9 @@ class User(db.Model):
     multiUnit = db.Column(db.Boolean, default=False)
 preferred_day = db.Column(db.String(20), default='Any')
 preferred_time_window = db.Column(db.String(100), default='Anytime')
+recurrence = db.Column(db.String(20), default='None')
+last_service_date = db.Column(db.DateTime)
+next_service_date = db.Column(db.DateTime)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
