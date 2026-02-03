@@ -1,21 +1,26 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_cors import CORS
 import os
+from werkzeug.utils import secure_filename
 from datetime import datetime
 
 app = Flask(__name__)
 
-# Config
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///test.db').replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
 app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-dev-secret')
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
 
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 CORS(app)
+
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
 
 class Branch(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -63,14 +68,25 @@ class Job(db.Model):
     end = db.Column(db.DateTime)
     description = db.Column(db.String(500))
 
+class LogbookReport(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    branch_id = db.Column(db.Integer, db.ForeignKey('branch.id'))
+    unit = db.Column(db.String(50))
+    pest = db.Column(db.String(100))
+    area = db.Column(db.String(100))
+    description = db.Column(db.String(500))
+    photo = db.Column(db.String(200))
+    reporter = db.Column(db.String(100))
+    permission = db.Column(db.String(50))
+    occupied = db.Column(db.String(20))
+    date = db.Column(db.DateTime, default=datetime.utcnow)
+
 with app.app_context():
     db.create_all()
-    # Admin
     if not User.query.filter_by(email='admin@azex.com').first():
         admin = User(email='admin@azex.com', password='azex2025', role='admin')
         db.session.add(admin)
         db.session.commit()
-    # Sample branches
     if not Branch.query.first():
         prescott = Branch(name='AZEX Prescott', city='Prescott', state='AZ', address='123 Main St')
         phoenix = Branch(name='AZEX Phoenix', city='Phoenix', state='AZ', address='456 Central Ave')
@@ -87,10 +103,7 @@ def login():
     data = request.get_json()
     user = User.query.filter_by(email=data.get('email')).first()
     if user and data.get('password') == 'azex2025':
-        token = create_access_token(
-            identity=str(user.id),
-            additional_claims={'role': user.role}
-        )
+        token = create_access_token(identity=str(user.id), additional_claims={'role': user.role})
         return jsonify({'access_token': token})
     return jsonify({'error': 'Invalid credentials'}), 401
 
@@ -174,27 +187,40 @@ def add_customer():
     db.session.commit()
     return jsonify({'message': 'Customer added successfully!'})
 
-@app.route('/api/test')
-def test():
-    return jsonify({'status': 'Backend working!'})
-
-if __name__ == '__main__':
-    app.run(debug=True)
-
 @app.route('/api/logbook', methods=['POST'])
 def logbook_report():
     property_id = request.form.get('property_id')
     if not property_id:
         return jsonify({'error': 'Missing property ID'}), 400
 
-    # Save photo if uploaded
     photo = request.files.get('photo')
     filename = None
     if photo:
         filename = secure_filename(photo.filename)
-        photo.save(os.path.join('uploads', filename))
+        photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
-    # Save report to DB (add Logbook model later — for now, placeholder)
-    # In full version, create Logbook model with property_id, unit, pest, etc.
-
+    report = LogbookReport(
+        branch_id=property_id,
+        unit=request.form.get('unit'),
+        pest=request.form.get('pest'),
+        area=request.form.get('area'),
+        description=request.form.get('description'),
+        photo=filename,
+        reporter=request.form.get('reporter'),
+        permission=request.form.get('permission'),
+        occupied=request.form.get('occupied')
+    )
+    db.session.add(report)
+    db.session.commit()
     return jsonify({'message': 'Report received!'})
+
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+@app.route('/api/test')
+def test():
+    return jsonify({'status': 'Backend working!'})
+
+if __name__ == '__main__':
+    app.run(debug=True)
