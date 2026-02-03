@@ -91,9 +91,16 @@ class Technician(db.Model):
     emergency_contact_name = db.Column(db.String(100))
     emergency_contact_phone = db.Column(db.String(20))
     hire_date = db.Column(db.Date)
-    pay_rate = db.Column(db.Float)
+    pay_type = db.Column(db.String(30), default='Hourly')  # New: Hourly, Salary, Salary + Commission, Commission Only
+    hourly_rate = db.Column(db.Float)  # Used for Hourly
+    salary = db.Column(db.Float)       # Used for Salary or Salary + Commission
+    commission_rate = db.Column(db.Float)  # Percentage, used for commission options
     employment_status = db.Column(db.String(20), default='Active')
     branch_id = db.Column(db.Integer, db.ForeignKey('branch.id'), nullable=False)
+
+    @property
+    def name(self):
+        return f"{self.first_name or ''} {self.last_name or ''}".strip() or 'Unnamed Technician'
 
     @property
     def name(self):
