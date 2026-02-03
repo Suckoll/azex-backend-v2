@@ -65,6 +65,8 @@ class User(db.Model):
     billState = db.Column(db.String(10))
     billZip = db.Column(db.String(20))
     multiUnit = db.Column(db.Boolean, default=False)
+preferred_day = db.Column(db.String(20), default='Any')
+preferred_time_window = db.Column(db.String(100), default='Anytime')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
