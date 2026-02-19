@@ -64,75 +64,15 @@ class Branch(db.Model):
     address = db.Column(db.String(200))
     manager_name = db.Column(db.String(100))
 
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(200))
-    role = db.Column(db.String(20), default='customer')
-    branch_id = db.Column(db.Integer, db.ForeignKey('branch.id'))
-    firstName = db.Column(db.String(100))
-    lastName = db.Column(db.String(100))
-    phone1 = db.Column(db.String(20))
-    company = db.Column(db.String(100))
-    address = db.Column(db.String(200))
-    city = db.Column(db.String(100))
-    state = db.Column(db.String(10))
-    zip = db.Column(db.String(20))
-    billName = db.Column(db.String(100))
-    billEmail = db.Column(db.String(120))
-    billPhone = db.Column(db.String(20))
-    billAddress = db.Column(db.String(200))
-    billCity = db.Column(db.String(100))
-    billState = db.Column(db.String(10))
-    billZip = db.Column(db.String(20))
-    multiUnit = db.Column(db.Boolean, default=False)
-    preferred_day = db.Column(db.String(20), default='Any')
-    preferred_time_window = db.Column(db.String(100), default='Anytime')
-    recurrence = db.Column(db.String(20), default='None')
-    last_service_date = db.Column(db.DateTime)
-    next_service_date = db.Column(db.DateTime)
-
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
-
-class Employee(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    first_name = db.Column(db.String(100), nullable=False)
-    last_name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(120))
-    phone = db.Column(db.String(20))
-    address = db.Column(db.String(200))
-    city = db.Column(db.String(100))
-    state = db.Column(db.String(10))
-    zip = db.Column(db.String(20))
-    date_of_birth = db.Column(db.Date)
-    emergency_contact_name = db.Column(db.String(100))
-    emergency_contact_phone = db.Column(db.String(20))
-    hire_date = db.Column(db.Date)
-    pay_type = db.Column(db.String(30), default='Hourly')
-    hourly_rate = db.Column(db.Float)
-    salary = db.Column(db.Float)
-    commission_rate = db.Column(db.Float)
-    role = db.Column(db.String(50), default='Technician')
-    employment_status = db.Column(db.String(20), default='Active')
-    branch_id = db.Column(db.Integer, db.ForeignKey('branch.id'), nullable=False)
-    photo = db.Column(db.String(200))
-
-    @property
-    def name(self):
-        return f"{self.first_name or ''} {self.last_name or ''}".strip() or 'Unnamed Employee'
-
-# Add other models (EmployeeDocument, Job, Product, Stock, Invoice, InvoiceItem, Payment, LogbookReport, Deal) from previous versions
-
-# SEEDING (full)
-
+# SEEDING
 with app.app_context():
     db.create_all()
 
-    # Admin, branches, employees, products/stock as before
+    if not Branch.query.first():
+        b1 = Branch(name='AZEX Prescott', city='Prescott', state='AZ', address='123 Main St')
+        b2 = Branch(name='AZEX Phoenix', city='Phoenix', state='AZ', address='456 Central Ave')
+        db.session.add_all([b1, b2])
+        db.session.commit()
 
 @app.route('/')
 def home():
@@ -147,7 +87,17 @@ def login():
         return jsonify({'access_token': token})
     return jsonify({'error': 'Invalid credentials'}), 401
 
-# All other routes (branches, employees, technicians, products, customers, etc.) from previous versions
+@app.route('/api/branches')
+@jwt_required()
+def get_branches():
+    branches = Branch.query.all()
+    return jsonify([{
+        'id': b.id,
+        'name': b.name,
+        'city': b.city,
+        'state': b.state,
+        'address': b.address or ''
+    } for b in branches])
 
 if __name__ == '__main__':
     app.run(debug=True)
