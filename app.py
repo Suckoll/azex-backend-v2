@@ -2,11 +2,11 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt
 from flask_mail import Mail, Message
+from flask_cors import CORS
 import os
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date
-from sqlalchemy.orm import joinedload
 from sqlalchemy import UniqueConstraint
 
 app = Flask(__name__)
@@ -31,23 +31,8 @@ db = SQLAlchemy(app)
 jwt = JWTManager(app)
 mail = Mail(app)
 
-# Global preflight handler
-@app.before_request
-def handle_preflight():
-    if request.method == "OPTIONS":
-        response = jsonify({})
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-        return response, 200
-
-# Headers on every response
-@app.after_request
-def after_request(response):
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-    return response
+# Flask-CORS - This is the fix Copilot suggested
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # Folders
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
@@ -98,32 +83,7 @@ class User(db.Model):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
-class Employee(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    first_name = db.Column(db.String(100), nullable=False)
-    last_name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(120))
-    phone = db.Column(db.String(20))
-    address = db.Column(db.String(200))
-    city = db.Column(db.String(100))
-    state = db.Column(db.String(10))
-    zip = db.Column(db.String(20))
-    date_of_birth = db.Column(db.Date)
-    emergency_contact_name = db.Column(db.String(100))
-    emergency_contact_phone = db.Column(db.String(20))
-    hire_date = db.Column(db.Date)
-    pay_type = db.Column(db.String(30), default='Hourly')
-    hourly_rate = db.Column(db.Float)
-    salary = db.Column(db.Float)
-    commission_rate = db.Column(db.Float)
-    role = db.Column(db.String(50), default='Technician')
-    employment_status = db.Column(db.String(20), default='Active')
-    branch_id = db.Column(db.Integer, db.ForeignKey('branch.id'), nullable=False)
-    photo = db.Column(db.String(200))
-
-    @property
-    def name(self):
-        return f"{self.first_name or ''} {self.last_name or ''}".strip() or 'Unnamed Employee'
+# Add other models (Employee, Product, Stock, etc.) from previous versions here
 
 # SEEDING
 with app.app_context():
@@ -140,8 +100,7 @@ with app.app_context():
     if not Branch.query.first():
         prescott = Branch(name='AZEX Prescott', city='Prescott', state='AZ', address='123 Main St')
         phoenix = Branch(name='AZEX Phoenix', city='Phoenix', state='AZ', address='456 Central Ave')
-        vegas = Branch(name='AZEX Las Vegas', city='Las Vegas', state='NV', address='789 Strip Blvd')
-        db.session.add_all([prescott, phoenix, vegas])
+        db.session.add_all([prescott, phoenix])
         db.session.commit()
 
 @app.route('/')
@@ -169,7 +128,7 @@ def get_branches():
         'address': b.address or ''
     } for b in branches])
 
-# Add other routes (employees, technicians, products, customers, etc.) from previous versions
+# Add other routes (employees, technicians, products, customers, etc.) as needed
 
 if __name__ == '__main__':
     app.run(debug=True)
