@@ -39,6 +39,7 @@ def handle_preflight():
         response.headers['Access-Control-Allow-Origin'] = '*'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response.headers['Access-Control-Max-Age'] = '3600'
         return response, 200
 
 # Headers on every response
@@ -56,6 +57,18 @@ if not os.path.exists(app.config['EMPLOYEE_PHOTO_FOLDER']):
     os.makedirs(app.config['EMPLOYEE_PHOTO_FOLDER'])
 
 # MODELS
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(50), default='admin')
+    
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+    
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
 class Branch(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -67,6 +80,12 @@ class Branch(db.Model):
 # SEEDING
 with app.app_context():
     db.create_all()
+
+    if not User.query.first():
+        admin = User(email='admin@azex.com', role='admin')
+        admin.set_password('admin123')
+        db.session.add(admin)
+        db.session.commit()
 
     if not Branch.query.first():
         b1 = Branch(name='AZEX Prescott', city='Prescott', state='AZ', address='123 Main St')
@@ -84,20 +103,23 @@ def login():
     user = User.query.filter_by(email=data.get('email')).first()
     if user and user.check_password(data.get('password')):
         token = create_access_token(identity=str(user.id), additional_claims={'role': user.role})
-        return jsonify({'access_token': token})
+        return jsonify({'access_token': token}), 200
     return jsonify({'error': 'Invalid credentials'}), 401
 
-@app.route('/api/branches')
+@app.route('/api/branches', methods=['GET'])
 @jwt_required()
 def get_branches():
-    branches = Branch.query.all()
-    return jsonify([{
-        'id': b.id,
-        'name': b.name,
-        'city': b.city,
-        'state': b.state,
-        'address': b.address or ''
-    } for b in branches])
+    try:
+        branches = Branch.query.all()
+        return jsonify([{
+            'id': b.id,
+            'name': b.name,
+            'city': b.city,
+            'state': b.state,
+            'address': b.address or ''
+        } for b in branches]), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
