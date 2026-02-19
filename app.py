@@ -1,46 +1,42 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt
-from flask_mail import Mail, Message
 from flask_cors import CORS
-import os
-from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, date
-from sqlalchemy import UniqueConstraint
+import os
 
 app = Flask(__name__)
 
+# Database configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///test.db').replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
 app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-dev-secret')
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['EMPLOYEE_PHOTO_FOLDER'] = 'uploads/employees'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
-# Mail configuration
-app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
-app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
-app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'true').lower() == 'true'
-app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
-app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_USERNAME')
-
+# Initialize extensions
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
-mail = Mail(app)
 
-# Flask-CORS - This is the fix Copilot suggested
-CORS(app, resources={r"/api/*": {"origins": "*"}})
-
-# Folders
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
-if not os.path.exists(app.config['EMPLOYEE_PHOTO_FOLDER']):
-    os.makedirs(app.config['EMPLOYEE_PHOTO_FOLDER'])
+# CORS Configuration - This is critical
+CORS(app, 
+     origins=['https://azex-portal.vercel.app', 'http://localhost:3000'],
+     allow_headers=['Content-Type', 'Authorization'],
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+     supports_credentials=True)
 
 # MODELS
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(50), default='admin')
+    
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+    
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
 class Branch(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -49,86 +45,66 @@ class Branch(db.Model):
     address = db.Column(db.String(200))
     manager_name = db.Column(db.String(100))
 
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(200))
-    role = db.Column(db.String(20), default='customer')
-    branch_id = db.Column(db.Integer, db.ForeignKey('branch.id'))
-    firstName = db.Column(db.String(100))
-    lastName = db.Column(db.String(100))
-    phone1 = db.Column(db.String(20))
-    company = db.Column(db.String(100))
-    address = db.Column(db.String(200))
-    city = db.Column(db.String(100))
-    state = db.Column(db.String(10))
-    zip = db.Column(db.String(20))
-    billName = db.Column(db.String(100))
-    billEmail = db.Column(db.String(120))
-    billPhone = db.Column(db.String(20))
-    billAddress = db.Column(db.String(200))
-    billCity = db.Column(db.String(100))
-    billState = db.Column(db.String(10))
-    billZip = db.Column(db.String(20))
-    multiUnit = db.Column(db.Boolean, default=False)
-    preferred_day = db.Column(db.String(20), default='Any')
-    preferred_time_window = db.Column(db.String(100), default='Anytime')
-    recurrence = db.Column(db.String(20), default='None')
-    last_service_date = db.Column(db.DateTime)
-    next_service_date = db.Column(db.DateTime)
-
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
-
-# Add other models (Employee, Product, Stock, etc.) from previous versions here
-
-# SEEDING
+# Initialize database and seed data
 with app.app_context():
     db.create_all()
 
-    # Admin user
-    if not User.query.filter_by(email='admin@azex.com').first():
+    # Seed test user
+    if not User.query.first():
         admin = User(email='admin@azex.com', role='admin')
-        admin.set_password('azex2025')
+        admin.set_password('admin123')
         db.session.add(admin)
         db.session.commit()
 
-    # Sample branches
+    # Seed branches
     if not Branch.query.first():
-        prescott = Branch(name='AZEX Prescott', city='Prescott', state='AZ', address='123 Main St')
-        phoenix = Branch(name='AZEX Phoenix', city='Phoenix', state='AZ', address='456 Central Ave')
-        db.session.add_all([prescott, phoenix])
+        b1 = Branch(name='AZEX Prescott', city='Prescott', state='AZ', address='123 Main St')
+        b2 = Branch(name='AZEX Phoenix', city='Phoenix', state='AZ', address='456 Central Ave')
+        db.session.add_all([b1, b2])
         db.session.commit()
 
+# Routes
 @app.route('/')
 def home():
     return "AZEX Customer Management System Backend is LIVE!"
 
-@app.route('/api/auth/login', methods=['POST'])
+@app.route('/api/auth/login', methods=['POST', 'OPTIONS'])
 def login():
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     data = request.get_json()
+    if not data or not data.get('email') or not data.get('password'):
+        return jsonify({'error': 'Missing email or password'}), 400
+    
     user = User.query.filter_by(email=data.get('email')).first()
     if user and user.check_password(data.get('password')):
         token = create_access_token(identity=str(user.id), additional_claims={'role': user.role})
-        return jsonify({'access_token': token})
+        return jsonify({'access_token': token}), 200
+    
     return jsonify({'error': 'Invalid credentials'}), 401
 
-@app.route('/api/branches')
-@jwt_required()
+@app.route('/api/branches', methods=['GET', 'OPTIONS'])
+@jwt_required(optional=False)
 def get_branches():
-    branches = Branch.query.all()
-    return jsonify([{
-        'id': b.id,
-        'name': b.name,
-        'city': b.city,
-        'state': b.state,
-        'address': b.address or ''
-    } for b in branches])
+    if request.method == 'OPTIONS':
+        return '', 204
+    
+    try:
+        branches = Branch.query.all()
+        return jsonify([{
+            'id': b.id,
+            'name': b.name,
+            'city': b.city,
+            'state': b.state,
+            'address': b.address or ''
+        } for b in branches]), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-# Add other routes (employees, technicians, products, customers, etc.) as needed
+@app.errorhandler(401)
+def unauthorized(error):
+    return jsonify({'error': 'Unauthorized - Invalid or missing token'}), 401
 
 if __name__ == '__main__':
     app.run(debug=True)
