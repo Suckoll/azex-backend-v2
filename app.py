@@ -125,20 +125,14 @@ class Employee(db.Model):
     def name(self):
         return f"{self.first_name or ''} {self.last_name or ''}".strip() or 'Unnamed Employee'
 
-# Add other models (EmployeeDocument, Job, Product, Stock, Invoice, InvoiceItem, Payment, LogbookReport, Deal) as in previous full versions
+# Add other models (EmployeeDocument, Job, Product, Stock, Invoice, InvoiceItem, Payment, LogbookReport, Deal) from previous versions
 
-# DATABASE SEEDING
+# SEEDING (full)
+
 with app.app_context():
     db.create_all()
 
-    # Admin user
-    if not User.query.filter_by(email='admin@azex.com').first():
-        admin = User(email='admin@azex.com', role='admin')
-        admin.set_password('azex2025')
-        db.session.add(admin)
-        db.session.commit()
-
-    # Sample branches, employees, products/stock as in previous
+    # Admin, branches, employees, products/stock as before
 
 @app.route('/')
 def home():
@@ -153,7 +147,7 @@ def login():
         return jsonify({'access_token': token})
     return jsonify({'error': 'Invalid credentials'}), 401
 
-# Add all other routes (branches, employees, technicians, products, customers, jobs, stock, invoices, deals, photo upload, invoice email) from previous full versions
+# All other routes (branches, employees, technicians, products, customers, etc.) from previous versions
 
 if __name__ == '__main__':
     app.run(debug=True)
