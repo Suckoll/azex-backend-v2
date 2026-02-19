@@ -15,7 +15,7 @@ app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-dev-secret'
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 
-# Flask-CORS - Recommended by Copilot
+# Flask-CORS
 CORS(app, origins=['https://azex-portal.vercel.app', 'http://localhost:3000'])
 
 # MODELS
@@ -38,7 +38,7 @@ class User(db.Model):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
-# SEEDING - Force admin creation every startup
+# SEEDING - Force admin every startup
 with app.app_context():
     db.create_all()
 
@@ -48,8 +48,10 @@ with app.app_context():
         admin = User(email='admin@azex.com', role='admin')
         admin.set_password('azex2025')
         db.session.add(admin)
+        print("✓ Admin user seeded: admin@azex.com / azex2025")
     else:
-        admin.set_password('azex2025')  # Reset password every deploy
+        admin.set_password('azex2025')
+        print("✓ Admin password reset: admin@azex.com / azex2025")
     db.session.commit()
 
     # Sample branches
@@ -58,6 +60,7 @@ with app.app_context():
         b2 = Branch(name='AZEX Phoenix', city='Phoenix', state='AZ', address='456 Central Ave')
         db.session.add_all([b1, b2])
         db.session.commit()
+        print("✓ 2 branches seeded")
 
 @app.route('/')
 def home():
@@ -89,6 +92,19 @@ def get_branches():
         'state': b.state,
         'address': b.address or ''
     } for b in branches]), 200
+
+@app.route('/api/debug')
+def debug():
+    users_count = User.query.count()
+    branches_count = Branch.query.count()
+    admin_exists = User.query.filter_by(email='admin@azex.com').first() is not None
+    return jsonify({
+        'users': users_count,
+        'branches': branches_count,
+        'admin_exists': admin_exists,
+        'admin_email': 'admin@azex.com',
+        'admin_password': 'azex2025'
+    })
 
 if __name__ == '__main__':
     app.run(debug=True)
